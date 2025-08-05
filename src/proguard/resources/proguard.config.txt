@@ -38,3 +38,16 @@
 -adaptresourcefilenames ErrorStrip.properties
 -adaptresourcefilenames RSyntaxTextArea.properties
 -adaptresourcefilenames FocusableTip.properties
+
+# Fix for FlatLaf and missing dependencies  
+-dontwarn com.apple.**
+-dontwarn apple.**
+-dontwarn com.sun.**
+-dontwarn sun.**
+-dontwarn com.formdev.flatlaf.**
+-dontwarn com.yuvimasory.**
+-dontwarn javax.swing.plaf.nimbus.**
+
+# Keep FlatLaf classes
+-keep class com.formdev.flatlaf.** { *; }
+-keep class com.yuvimasory.orange.** { *; }

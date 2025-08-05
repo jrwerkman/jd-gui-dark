@@ -20,6 +20,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.FlatDarculaLaf;
+
 public class App {
     protected static final String SINGLE_INSTANCE = "UIMainWindowPreferencesProvider.singleInstance";
 
@@ -47,7 +50,8 @@ public class App {
 
             // Create SwingBuilder, set look and feel
             try {
-                UIManager.setLookAndFeel(configuration.getLookAndFeel());
+                UIManager.setLookAndFeel(new FlatDarculaLaf());
+                //UIManager.setLookAndFeel(configuration.getLookAndFeel());
             } catch (Exception e) {
                 configuration.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
                 try {

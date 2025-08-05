@@ -1,11 +1,14 @@
 buildscript {
     repositories {
-        jcenter()
+        mavenCentral()
+        gradlePluginPortal()
+        maven { url 'https://jitpack.io' }
     }
     dependencies {
         classpath 'com.netflix.nebula:gradle-ospackage-plugin:5.3.0'    // RPM & DEB support
-        classpath 'edu.sc.seis.gradle:launch4j:2.4.4'
+        classpath 'edu.sc.seis.launch4j:launch4j:3.0.6'
         classpath 'net.sf.proguard:proguard-gradle:6.1.0'
+        classpath 'com.github.johnrengelman:shadow:5.2.0'
     }
 }
 
@@ -13,6 +16,7 @@ apply plugin: 'java'
 apply plugin: 'distribution'
 apply plugin: 'edu.sc.seis.launch4j'
 apply plugin: 'nebula.ospackage'
+apply plugin: 'com.github.johnrengelman.shadow'
 
 // Common configuration //
 rootProject.version='1.6.6'
@@ -31,7 +35,9 @@ allprojects {
     }
 
     repositories {
-        jcenter()
+        mavenCentral()
+        gradlePluginPortal()
+        maven { url 'https://jitpack.io' }
     }
 
     configurations {
@@ -52,55 +58,31 @@ subprojects.each { subproject ->
     evaluationDependsOn(subproject.path)
 }
 
-jar {
-    dependsOn subprojects.tasks['jar']
-
-    // Add SPI directory
-    def tmpSpiDir = file('build/tmp/spi')
-    from tmpSpiDir
-    // Add dependencies
-    def deps = []
-    subprojects.each { subproject ->
-        from subproject.sourceSets.main.output.classesDirs
-        from subproject.sourceSets.main.output.resourcesDir
-        deps += subproject.configurations.runtime - subproject.configurations.provided
-    }
-    subprojects.each { subproject ->
-        deps -= subproject.jar.archivePath
-    }
-    deps = deps.unique().collect { it.isDirectory() ? it : zipTree(it) }
-    from deps
-
+shadowJar {
+    archiveBaseName = project.name
+    archiveVersion = project.version
+    archiveClassifier = ''
+    
+    // Include app module (main classes and FlatLaf)
+    from project(':app').sourceSets.main.output
+    from project(':services').sourceSets.main.output  
+    from project(':api').sourceSets.main.output
+    
+    // Include all runtime dependencies from app module
+    configurations = [project(':app').configurations.runtimeClasspath]
+    
     manifest {
-        attributes 'Main-Class': 'org.jd.gui.App',
-                'SplashScreen-Image': 'org/jd/gui/images/jd_icon_128.png',
-                'JD-GUI-Version': project.version,
-                'JD-Core-Version': project.jdCoreVersion
+        attributes 'Main-Class': 'org.jd.gui.App'
     }
-    exclude 'META-INF/licenses/**', 'META-INF/maven/**', 'META-INF/INDEX.LIST'
-    exclude '**/ErrorStrip_*.properties', '**/RSyntaxTextArea_*.properties', '**/RTextArea_*.properties'
-    exclude '**/FocusableTip_*.properties', '**/RSyntaxTextArea_License.txt'
-    duplicatesStrategy DuplicatesStrategy.EXCLUDE
-    doFirst {
-        // Create SPI directory
-        tmpSpiDir.deleteDir()
-        def tmpSpiServicesDir = file(tmpSpiDir.path + '/META-INF/services')
-        tmpSpiServicesDir.mkdirs()
-        // Copy and merge SPI config files
-        subprojects.each { subproject ->
-            def servicesDir = file(subproject.sourceSets.main.output.resourcesDir.path + '/META-INF/services')
-            if (servicesDir.exists()) {
-                servicesDir.eachFile { serviceFile ->
-                    def target = file(tmpSpiServicesDir.path + '/' + serviceFile.name)
-                    target << serviceFile.text
-                }
-            }
-        }
-    }
+    
+    // Exclude duplicate files
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA' 
+    exclude 'META-INF/*.RSA'
 }
 
 // Minify JAR file //
-task proguard(type: proguard.gradle.ProGuardTask, dependsOn: 'jar') {
+task proguard(type: proguard.gradle.ProGuardTask, dependsOn: 'shadowJar') {
     configuration 'src/proguard/resources/proguard.config.txt'
     injars jar.archivePath
     outjars 'build/libs/' + project.name + '-' + project.version + '-min.jar'
@@ -110,14 +92,15 @@ task proguard(type: proguard.gradle.ProGuardTask, dependsOn: 'jar') {
 
 // Java executable wrapper for Windows //
 launch4j {
-    createExe.dependsOn 'proguard'
+    createExe.dependsOn 'shadowJar'
 
     version = textVersion = project.version
-    fileDescription = productName = 'JD-GUI'
-    errTitle 'JD-GUI Windows Wrapper'
-    copyright 'JD-GUI (C) 2008-2019 Emmanuel Dupuy'
-    icon projectDir.path + '/src/launch4j/resources/images/jd-gui.ico'
-    jar projectDir.path + '/' + proguard.outJarFiles[0]
+    productName = 'JD-GUI'
+    description = 'JD-GUI Windows Wrapper'
+    fileDescription = 'JD-GUI (C) 2008-2019 Emmanuel Dupuy'
+    icon = "${projectDir}/src/launch4j/resources/images/jd-gui.ico"
+    //jar "${projectDir}/${proguard.outJarFiles[0]}"
+    mainClassName = 'org.jd.gui.App'
     bundledJrePath = '%JAVA_HOME%'
 }
 
